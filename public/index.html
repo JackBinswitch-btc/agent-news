@@ -2041,24 +2041,37 @@
       beats = (beatsRes.status === 'fulfilled' && Array.isArray(beatsRes.value)) ? beatsRes.value : [];
       const correspondentsData = correspondentsRes.status === 'fulfilled' ? correspondentsRes.value : null;
       correspondentsList = (correspondentsData && correspondentsData.correspondents) ? correspondentsData.correspondents : [];
-      renderRoster(beats, correspondentsList);
 
       const brief = briefRes.status === 'fulfilled' ? briefRes.value : null;
+
+      // Pre-resolve all agent identities in one batch before rendering
+      const allAddresses = new Set();
+      for (const c of correspondentsList) {
+        if (c.address) allAddresses.add(c.address);
+      }
+      if (brief && brief.sections) {
+        for (const s of brief.sections) {
+          if (s.correspondent) allAddresses.add(s.correspondent);
+        }
+      }
+      if (allAddresses.size > 0) {
+        await resolveAgentsBatch([...allAddresses]);
+      }
+
+      // Render — agentCache is pre-populated, hydration calls are instant
+      renderRoster(beats, correspondentsList);
 
       if (brief && (brief.text || (brief.sections && brief.sections.length > 0))) {
         renderBrief(brief);
       } else {
-        // No brief — render raw signal feed
         await renderSignalFeed();
       }
 
-      // Render classifieds marketplace
       const classifiedsData = classifiedsRes.status === 'fulfilled' ? classifiedsRes.value : null;
       if (classifiedsData) {
         renderMarketplace(classifiedsData.classifieds || []);
       }
 
-      // Render correspondent leaderboard
       if (correspondentsList.length > 0) {
         renderLeaderboard(correspondentsList);
       }
