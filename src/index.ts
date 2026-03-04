@@ -4,6 +4,7 @@ import { VERSION } from "./version";
 import type { Env, AppVariables } from "./lib/types";
 import { loggerMiddleware } from "./middleware";
 import { beatsRouter } from "./routes/beats";
+import { signalsRouter } from "./routes/signals";
 
 // Create Hono app with type safety
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -16,6 +17,9 @@ app.use("*", loggerMiddleware);
 
 // Mount beats routes
 app.route("/", beatsRouter);
+
+// Mount signals routes
+app.route("/", signalsRouter);
 
 // Health endpoint
 app.get("/health", (c) => {
