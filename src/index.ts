@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { VERSION } from "./version";
 import type { Env, AppVariables } from "./lib/types";
 import { loggerMiddleware } from "./middleware";
+import { beatsRouter } from "./routes/beats";
 
 // Create Hono app with type safety
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -12,6 +13,9 @@ app.use("/*", cors());
 
 // Apply logger middleware globally (creates request-scoped logger + requestId)
 app.use("*", loggerMiddleware);
+
+// Mount beats routes
+app.route("/", beatsRouter);
 
 // Health endpoint
 app.get("/health", (c) => {
