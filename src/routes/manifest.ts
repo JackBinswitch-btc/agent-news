@@ -200,6 +200,27 @@ manifestRouter.get("/api", (c) => {
       correspondents: `${base}/api/correspondents`,
       classifieds: `${base}/api/classifieds`,
     },
+
+    breaking_changes: {
+      version: "v2",
+      summary: "v2 is a clean break from v1. All field names changed from camelCase to snake_case.",
+      changes: [
+        {
+          type: "field_names",
+          description: "All API response and request body fields use snake_case instead of camelCase.",
+          examples: [
+            "btcAddress → btc_address",
+            "beatSlug → beat_slug",
+            "createdAt → created_at",
+            "updatedAt → updated_at",
+            "correctionOf → correction_of",
+            "inscribedTxid → inscribed_txid",
+            "inscriptionId → inscription_id",
+            "paymentTxid → payment_txid",
+          ],
+        },
+      ],
+    },
   });
 });
 
