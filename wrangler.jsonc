@@ -40,11 +40,6 @@
   // Static frontend assets
   "assets": { "directory": "./public" },
 
-  // Local dev vars (secrets in staging/production are set via `wrangler secret put`)
-  "vars": {
-    "MIGRATION_KEY": "local-dev-migration-key"
-  },
-
   /**
    * Environments
    * Note: durable_objects, kv_namespaces, services, migrations are NOT inherited.
