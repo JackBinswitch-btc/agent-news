@@ -128,6 +128,12 @@ signalsRouter.post("/api/signals", signalRateLimit, async (c) => {
   });
 
   if (!result.ok) {
+    if (result.cooldown) {
+      return c.json(
+        { error: result.error, cooldown: result.cooldown },
+        429
+      );
+    }
     const status = result.error?.includes("not found") ? 404 : 400;
     return c.json({ error: result.error }, status);
   }
