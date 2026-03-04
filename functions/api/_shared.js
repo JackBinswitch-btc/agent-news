@@ -22,7 +22,7 @@ export function formatPacificShort(isoStr) {
 
 // ── Payment constants ──
 export const TREASURY_STX_ADDRESS = 'SP236MA9EWHF1DN3X84EQAJEW7R6BDZZ93K3EMC3C';
-export const SBTC_CONTRACT_MAINNET = 'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token';
+export const SBTC_CONTRACT_MAINNET = 'SP2XD7417HGPRTREMKF08VBER9H3QAKV17YADNZJC.sbtc-token';
 export const X402_RELAY_URL = 'https://x402-relay.aibtc.com';
 export const BRIEF_PRICE_SATS = 1000;
 export const CORRESPONDENT_SHARE = 0.7;
@@ -33,7 +33,7 @@ export const CLASSIFIED_CATEGORIES = ['ordinals', 'services', 'agents', 'wanted'
 export const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, payment-signature',
 };
 
 export function json(data, opts = {}) {

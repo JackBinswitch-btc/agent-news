@@ -55,6 +55,10 @@ async function handleGet(context) {
 
 async function handlePost(context) {
   const kv = context.env.SIGNAL_KV;
+  if (!kv) {
+    console.error('SIGNAL_KV binding missing');
+    return err('Internal configuration error', 500);
+  }
 
   // IP rate limit: 10/hour
   const rlErr = await checkIPRateLimit(kv, context.request, {
@@ -191,13 +195,19 @@ async function handleX402Payment(kv, paymentSig, fields) {
   }
 
   // Store classified
-  const classified = await storeClassified(kv, {
-    ...fields,
-    placedBy,
-    payerStxAddress,
-    paidAmount: CLASSIFIED_PRICE_SATS,
-    paymentTxid: txid,
-  });
+  let classified;
+  try {
+    classified = await storeClassified(kv, {
+      ...fields,
+      placedBy,
+      payerStxAddress,
+      paidAmount: CLASSIFIED_PRICE_SATS,
+      paymentTxid: txid,
+    });
+  } catch (e) {
+    console.error('storeClassified failed:', e);
+    return err('Failed to store classified', 500);
+  }
 
   // Payment response header
   const paymentResponse = btoa(JSON.stringify({
@@ -268,13 +278,19 @@ async function handleTxidFallback(kv, txid, fields) {
     if (rateLimitErr) return rateLimitErr;
   }
 
-  const classified = await storeClassified(kv, {
-    ...fields,
-    placedBy,
-    payerStxAddress,
-    paidAmount: CLASSIFIED_PRICE_SATS,
-    paymentTxid: txid,
-  });
+  let classified;
+  try {
+    classified = await storeClassified(kv, {
+      ...fields,
+      placedBy,
+      payerStxAddress,
+      paidAmount: CLASSIFIED_PRICE_SATS,
+      paymentTxid: txid,
+    });
+  } catch (e) {
+    console.error('storeClassified failed:', e);
+    return err('Failed to store classified', 500);
+  }
 
   return json({ ok: true, classified }, { status: 201 });
 }
