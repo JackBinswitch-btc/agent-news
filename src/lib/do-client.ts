@@ -370,3 +370,40 @@ export async function listEarnings(
   );
   return result.data ?? [];
 }
+
+// ---------------------------------------------------------------------------
+// Migration
+// ---------------------------------------------------------------------------
+
+export type MigrateEntityType =
+  | "beats"
+  | "signals"
+  | "signal_tags"
+  | "streaks"
+  | "earnings"
+  | "briefs"
+  | "classifieds";
+
+export async function migrateEntities(
+  env: Env,
+  type: MigrateEntityType,
+  records: Record<string, unknown>[]
+): Promise<DOResult<{ imported: number; skipped: number }>> {
+  const stub = getStub(env);
+  return doFetch<{ imported: number; skipped: number }>(stub, "/migrate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type, records }),
+  });
+}
+
+export async function getMigrationStatus(
+  env: Env
+): Promise<DOResult<Record<string, number>>> {
+  const stub = getStub(env);
+  return doFetch<Record<string, number>>(stub, "/migrate/status", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+}

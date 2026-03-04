@@ -984,6 +984,226 @@ export class NewsDO extends DurableObject<Env> {
       return c.json({ ok: true, data: rows as unknown as Earning[] } satisfies DOResult<Earning[]>);
     });
 
+    // -------------------------------------------------------------------------
+    // Migration endpoints — bulk import from old KV system
+    // -------------------------------------------------------------------------
+
+    // POST /migrate/status — return row counts for each table
+    this.router.post("/migrate/status", (c) => {
+      const rows = this.ctx.storage.sql
+        .exec(
+          `SELECT 'beats' as entity, COUNT(*) as count FROM beats
+           UNION ALL SELECT 'signals', COUNT(*) FROM signals
+           UNION ALL SELECT 'signal_tags', COUNT(*) FROM signal_tags
+           UNION ALL SELECT 'streaks', COUNT(*) FROM streaks
+           UNION ALL SELECT 'earnings', COUNT(*) FROM earnings
+           UNION ALL SELECT 'briefs', COUNT(*) FROM briefs
+           UNION ALL SELECT 'classifieds', COUNT(*) FROM classifieds`
+        )
+        .toArray();
+      const status: Record<string, number> = {};
+      for (const row of rows) {
+        const r = row as Record<string, unknown>;
+        status[r.entity as string] = r.count as number;
+      }
+      return c.json({ ok: true, data: status } satisfies DOResult<Record<string, number>>);
+    });
+
+    // POST /migrate — bulk import entity records (idempotent via INSERT OR IGNORE)
+    this.router.post("/migrate", async (c) => {
+      let body: Record<string, unknown>;
+      try {
+        body = await c.req.json<Record<string, unknown>>();
+      } catch {
+        return c.json(
+          { ok: false, error: "Invalid JSON body" } satisfies DOResult<{ imported: number; skipped: number }>,
+          400
+        );
+      }
+
+      const { type, records } = body;
+
+      if (!type || !Array.isArray(records)) {
+        return c.json(
+          { ok: false, error: "Missing required fields: type (string), records (array)" } satisfies DOResult<{ imported: number; skipped: number }>,
+          400
+        );
+      }
+
+      const validTypes = ["beats", "signals", "signal_tags", "streaks", "earnings", "briefs", "classifieds"];
+      if (!validTypes.includes(type as string)) {
+        return c.json(
+          { ok: false, error: `Invalid type "${type as string}". Must be one of: ${validTypes.join(", ")}` } satisfies DOResult<{ imported: number; skipped: number }>,
+          400
+        );
+      }
+
+      const entityType = type as string;
+      let imported = 0;
+      let skipped = 0;
+
+      // Count rows before insert to determine imported vs skipped
+      const countBefore = (table: string): number => {
+        const r = this.ctx.storage.sql.exec(`SELECT COUNT(*) as n FROM ${table}`).toArray();
+        return (r[0] as Record<string, unknown>).n as number;
+      };
+
+      if (entityType === "beats") {
+        const before = countBefore("beats");
+        this.ctx.storage.sql.exec("BEGIN");
+        for (const rec of records as Record<string, unknown>[]) {
+          const now = new Date().toISOString();
+          this.ctx.storage.sql.exec(
+            `INSERT OR IGNORE INTO beats (slug, name, description, color, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            rec.slug as string,
+            rec.name as string,
+            (rec.description as string | null) ?? null,
+            (rec.color as string | null) ?? null,
+            (rec.created_by as string) ?? "migration",
+            (rec.created_at as string) ?? now,
+            (rec.updated_at as string) ?? now
+          );
+        }
+        this.ctx.storage.sql.exec("COMMIT");
+        const after = countBefore("beats");
+        imported = after - before;
+        skipped = records.length - imported;
+
+      } else if (entityType === "signals") {
+        const before = countBefore("signals");
+        this.ctx.storage.sql.exec("BEGIN");
+        for (const rec of records as Record<string, unknown>[]) {
+          const now = new Date().toISOString();
+          const sourcesJson = typeof rec.sources === "string"
+            ? rec.sources
+            : JSON.stringify(rec.sources ?? []);
+          this.ctx.storage.sql.exec(
+            `INSERT OR IGNORE INTO signals (id, beat_slug, btc_address, headline, body, sources, created_at, updated_at, correction_of)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            rec.id as string,
+            rec.beat_slug as string,
+            rec.btc_address as string,
+            rec.headline as string,
+            (rec.body as string | null) ?? null,
+            sourcesJson,
+            (rec.created_at as string) ?? now,
+            (rec.updated_at as string) ?? now,
+            (rec.correction_of as string | null) ?? null
+          );
+        }
+        this.ctx.storage.sql.exec("COMMIT");
+        const after = countBefore("signals");
+        imported = after - before;
+        skipped = records.length - imported;
+
+      } else if (entityType === "signal_tags") {
+        const before = countBefore("signal_tags");
+        this.ctx.storage.sql.exec("BEGIN");
+        for (const rec of records as Record<string, unknown>[]) {
+          this.ctx.storage.sql.exec(
+            `INSERT OR IGNORE INTO signal_tags (signal_id, tag) VALUES (?, ?)`,
+            rec.signal_id as string,
+            rec.tag as string
+          );
+        }
+        this.ctx.storage.sql.exec("COMMIT");
+        const after = countBefore("signal_tags");
+        imported = after - before;
+        skipped = records.length - imported;
+
+      } else if (entityType === "streaks") {
+        const before = countBefore("streaks");
+        this.ctx.storage.sql.exec("BEGIN");
+        for (const rec of records as Record<string, unknown>[]) {
+          this.ctx.storage.sql.exec(
+            `INSERT OR IGNORE INTO streaks (btc_address, current_streak, longest_streak, last_signal_date, total_signals)
+             VALUES (?, ?, ?, ?, ?)`,
+            rec.btc_address as string,
+            (rec.current_streak as number) ?? 0,
+            (rec.longest_streak as number) ?? 0,
+            (rec.last_signal_date as string | null) ?? null,
+            (rec.total_signals as number) ?? 0
+          );
+        }
+        this.ctx.storage.sql.exec("COMMIT");
+        const after = countBefore("streaks");
+        imported = after - before;
+        skipped = records.length - imported;
+
+      } else if (entityType === "earnings") {
+        const before = countBefore("earnings");
+        this.ctx.storage.sql.exec("BEGIN");
+        for (const rec of records as Record<string, unknown>[]) {
+          const now = new Date().toISOString();
+          this.ctx.storage.sql.exec(
+            `INSERT OR IGNORE INTO earnings (id, btc_address, amount_sats, reason, reference_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            rec.id as string,
+            rec.btc_address as string,
+            (rec.amount_sats as number) ?? 0,
+            (rec.reason as string) ?? "migration",
+            (rec.reference_id as string | null) ?? null,
+            (rec.created_at as string) ?? now
+          );
+        }
+        this.ctx.storage.sql.exec("COMMIT");
+        const after = countBefore("earnings");
+        imported = after - before;
+        skipped = records.length - imported;
+
+      } else if (entityType === "briefs") {
+        const before = countBefore("briefs");
+        this.ctx.storage.sql.exec("BEGIN");
+        for (const rec of records as Record<string, unknown>[]) {
+          const now = new Date().toISOString();
+          this.ctx.storage.sql.exec(
+            `INSERT OR IGNORE INTO briefs (date, text, json_data, compiled_at, inscribed_txid, inscription_id)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            rec.date as string,
+            rec.text as string,
+            (rec.json_data as string | null) ?? null,
+            (rec.compiled_at as string) ?? now,
+            (rec.inscribed_txid as string | null) ?? null,
+            (rec.inscription_id as string | null) ?? null
+          );
+        }
+        this.ctx.storage.sql.exec("COMMIT");
+        const after = countBefore("briefs");
+        imported = after - before;
+        skipped = records.length - imported;
+
+      } else if (entityType === "classifieds") {
+        const before = countBefore("classifieds");
+        this.ctx.storage.sql.exec("BEGIN");
+        for (const rec of records as Record<string, unknown>[]) {
+          const now = new Date().toISOString();
+          this.ctx.storage.sql.exec(
+            `INSERT OR IGNORE INTO classifieds (id, btc_address, category, headline, body, contact, payment_txid, created_at, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            rec.id as string,
+            rec.btc_address as string,
+            rec.category as string,
+            rec.headline as string,
+            (rec.body as string | null) ?? null,
+            (rec.contact as string | null) ?? null,
+            (rec.payment_txid as string | null) ?? null,
+            (rec.created_at as string) ?? now,
+            (rec.expires_at as string) ?? now
+          );
+        }
+        this.ctx.storage.sql.exec("COMMIT");
+        const after = countBefore("classifieds");
+        imported = after - before;
+        skipped = records.length - imported;
+      }
+
+      return c.json({
+        ok: true,
+        data: { imported, skipped },
+      } satisfies DOResult<{ imported: number; skipped: number }>);
+    });
+
     this.router.all("*", (c) => {
       return c.json({ ok: false, error: "Not found" }, 404);
     });

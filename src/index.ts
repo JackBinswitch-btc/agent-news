@@ -17,6 +17,7 @@ import { agentsRouter } from "./routes/agents";
 import { inscriptionsRouter } from "./routes/inscriptions";
 import { reportRouter } from "./routes/report";
 import { manifestRouter } from "./routes/manifest";
+import { migrateEntities, getMigrationStatus, type MigrateEntityType } from "./lib/do-client";
 
 // Create Hono app with type safety
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -52,6 +53,41 @@ app.route("/", skillsRouter);
 app.route("/", agentsRouter);
 app.route("/", inscriptionsRouter);
 app.route("/", reportRouter);
+
+// -------------------------------------------------------------------------
+// Internal migration endpoints — proxy to DO /migrate
+// These are internal-only routes for the KV-to-DO migration script.
+// -------------------------------------------------------------------------
+
+// POST /api/internal/migrate — bulk import entity records into the DO
+app.post("/api/internal/migrate", async (c) => {
+  let body: Record<string, unknown>;
+  try {
+    body = await c.req.json<Record<string, unknown>>();
+  } catch {
+    return c.json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const { type, records } = body;
+  if (!type || !Array.isArray(records)) {
+    return c.json({ error: "Missing required fields: type (string), records (array)" }, 400);
+  }
+
+  const result = await migrateEntities(c.env, type as MigrateEntityType, records as Record<string, unknown>[]);
+  if (!result.ok) {
+    return c.json({ error: result.error }, 400);
+  }
+  return c.json(result.data);
+});
+
+// POST /api/internal/migrate/status — get row counts from the DO
+app.post("/api/internal/migrate/status", async (c) => {
+  const result = await getMigrationStatus(c.env);
+  if (!result.ok) {
+    return c.json({ error: result.error }, 400);
+  }
+  return c.json(result.data);
+});
 
 // Health endpoint
 app.get("/health", (c) => {
