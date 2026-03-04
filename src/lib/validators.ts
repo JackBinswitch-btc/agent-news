@@ -1,12 +1,5 @@
 import type { Source } from "./types";
 
-// ── ID format validators (for KV key safety) ──
-
-export function validateId(id: unknown): id is string {
-  if (!id || typeof id !== "string") return false;
-  return /^[a-zA-Z0-9_-]{1,100}$/.test(id);
-}
-
 // ── Validation utilities ──
 
 export function validateBtcAddress(addr: unknown): addr is string {
