@@ -17,7 +17,7 @@
   // KV namespace — rate limiting and agent cache (uses staging KV for local dev)
   // TODO: replace ID with real value from: wrangler kv namespace create NEWS_KV
   "kv_namespaces": [
-    { "binding": "NEWS_KV", "id": "TODO-replace-with-actual-kv-namespace-id" }
+    { "binding": "NEWS_KV", "id": "a9581bb6ee574b74ae74241433249f47", "preview_id": "aa4a0d5dd3e6451fa5d130c3e7d7c715" }
   ],
 
   // Durable Object binding — primary storage engine (SQLite)
