@@ -78,20 +78,29 @@ export async function verifyPayment(
   amount: number
 ): Promise<PaymentVerifyResult> {
   try {
-    const settleRes = await fetch(`${X402_RELAY_URL}/api/v1/settle`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        paymentSignature: paymentHeader,
-        paymentRequirements: {
-          scheme: "exact",
-          network: "stacks:mainnet",
-          amount: String(amount),
-          asset: SBTC_CONTRACT_MAINNET,
-          payTo: TREASURY_STX_ADDRESS,
-        },
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+
+    let settleRes: Response;
+    try {
+      settleRes = await fetch(`${X402_RELAY_URL}/api/v1/settle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          paymentSignature: paymentHeader,
+          paymentRequirements: {
+            scheme: "exact",
+            network: "stacks:mainnet",
+            amount: String(amount),
+            asset: SBTC_CONTRACT_MAINNET,
+            payTo: TREASURY_STX_ADDRESS,
+          },
+        }),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const result = (await settleRes.json()) as Record<string, unknown>;
 
