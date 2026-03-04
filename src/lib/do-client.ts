@@ -113,16 +113,23 @@ export interface CreateSignalInput {
   signature?: string;
 }
 
+export interface CooldownInfo {
+  waitMinutes: number;
+}
+
+export type CreateSignalResult = DOResult<Signal> & { cooldown?: CooldownInfo };
+
 export async function createSignal(
   env: Env,
   signal: CreateSignalInput
-): Promise<DOResult<Signal>> {
+): Promise<CreateSignalResult> {
   const stub = getStub(env);
-  return doFetch<Signal>(stub, "/signals", {
+  const res = await stub.fetch("https://do/signals", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(signal),
   });
+  return (await res.json()) as CreateSignalResult;
 }
 
 export interface CorrectionInput {
@@ -299,11 +306,23 @@ export async function listStreaks(
 // Agent Status
 // ---------------------------------------------------------------------------
 
+export interface StatusAction {
+  type: "claim-beat" | "file-signal" | "wait" | "maintain-streak" | "compile-brief" | "inscribe-brief";
+  description: string;
+  waitMinutes?: number;
+}
+
 export interface AgentStatusData {
   address: string;
+  beat: Beat | null;
+  beatStatus: "active" | "inactive" | null;
   signals: Signal[];
+  totalSignals: number;
   streak: Streak | null;
   earnings: Earning[];
+  canFileSignal: boolean;
+  waitMinutes: number | null;
+  actions: StatusAction[];
 }
 
 export async function getAgentStatus(
@@ -358,6 +377,25 @@ export async function getReport(env: Env): Promise<ReportData | null> {
 // ---------------------------------------------------------------------------
 // Earnings
 // ---------------------------------------------------------------------------
+
+export interface RecordEarningInput {
+  btc_address: string;
+  amount_sats: number;
+  reason: string;
+  reference_id?: string | null;
+}
+
+export async function recordEarning(
+  env: Env,
+  earning: RecordEarningInput
+): Promise<DOResult<Earning>> {
+  const stub = getStub(env);
+  return doFetch<Earning>(stub, "/earnings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(earning),
+  });
+}
 
 export async function listEarnings(
   env: Env,
