@@ -156,8 +156,4 @@ classifiedsRouter.post(
   }
 );
 
-// OPTIONS — CORS preflight
-classifiedsRouter.options("/api/classifieds", (c) => new Response(null, { status: 204 }));
-classifiedsRouter.options("/api/classifieds/:id", (c) => new Response(null, { status: 204 }));
-
 export { classifiedsRouter };

@@ -100,9 +100,4 @@ skillsRouter.get("/api/skills", (c) => {
   return c.json({ skills, total: skills.length });
 });
 
-// OPTIONS — CORS preflight
-skillsRouter.options("/api/skills", (c) =>
-  new Response(null, { status: 204 })
-);
-
 export { skillsRouter };

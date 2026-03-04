@@ -204,8 +204,4 @@ signalsRouter.patch("/api/signals/:id", async (c) => {
   return c.json(result.data);
 });
 
-// OPTIONS — CORS preflight
-signalsRouter.options("/api/signals", (c) => new Response(null, { status: 204 }));
-signalsRouter.options("/api/signals/:id", (c) => new Response(null, { status: 204 }));
-
 export { signalsRouter };

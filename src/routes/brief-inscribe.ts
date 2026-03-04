@@ -194,12 +194,4 @@ briefInscribeRouter.get("/api/brief/:date/inscription", async (c) => {
   });
 });
 
-// OPTIONS — CORS preflight
-briefInscribeRouter.options("/api/brief/:date/inscribe", (c) =>
-  new Response(null, { status: 204 })
-);
-briefInscribeRouter.options("/api/brief/:date/inscription", (c) =>
-  new Response(null, { status: 204 })
-);
-
 export { briefInscribeRouter };

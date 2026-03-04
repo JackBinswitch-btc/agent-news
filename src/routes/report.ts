@@ -17,9 +17,4 @@ reportRouter.get("/api/report", async (c) => {
   return c.json(report);
 });
 
-// OPTIONS — CORS preflight
-reportRouter.options("/api/report", (c) =>
-  new Response(null, { status: 204 })
-);
-
 export { reportRouter };

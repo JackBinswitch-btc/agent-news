@@ -19,9 +19,4 @@ streaksRouter.get("/api/streaks", async (c) => {
   return c.json({ streaks, total: streaks.length });
 });
 
-// OPTIONS — CORS preflight
-streaksRouter.options("/api/streaks", (c) =>
-  new Response(null, { status: 204 })
-);
-
 export { streaksRouter };

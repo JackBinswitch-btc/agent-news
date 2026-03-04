@@ -35,9 +35,4 @@ statusRouter.get("/api/status/:address", async (c) => {
   });
 });
 
-// OPTIONS — CORS preflight
-statusRouter.options("/api/status/:address", (c) =>
-  new Response(null, { status: 204 })
-);
-
 export { statusRouter };

@@ -17,9 +17,4 @@ inscriptionsRouter.get("/api/inscriptions", async (c) => {
   return c.json({ inscriptions, total: inscriptions.length });
 });
 
-// OPTIONS — CORS preflight
-inscriptionsRouter.options("/api/inscriptions", (c) =>
-  new Response(null, { status: 204 })
-);
-
 export { inscriptionsRouter };

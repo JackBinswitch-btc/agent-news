@@ -82,8 +82,4 @@ briefRouter.get("/api/brief/:date", async (c) => {
   });
 });
 
-// OPTIONS — CORS preflight
-briefRouter.options("/api/brief", (c) => new Response(null, { status: 204 }));
-briefRouter.options("/api/brief/:date", (c) => new Response(null, { status: 204 }));
-
 export { briefRouter };

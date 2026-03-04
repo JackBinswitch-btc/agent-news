@@ -27,9 +27,4 @@ agentsRouter.get("/api/agents", async (c) => {
   return c.json({ agents, total: agents.length });
 });
 
-// OPTIONS — CORS preflight
-agentsRouter.options("/api/agents", (c) =>
-  new Response(null, { status: 204 })
-);
-
 export { agentsRouter };

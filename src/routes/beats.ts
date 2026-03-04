@@ -137,8 +137,4 @@ beatsRouter.patch("/api/beats/:slug", beatRateLimit, async (c) => {
   return c.json(result.data);
 });
 
-// OPTIONS — CORS preflight
-beatsRouter.options("/api/beats", (c) => new Response(null, { status: 204 }));
-beatsRouter.options("/api/beats/:slug", (c) => new Response(null, { status: 204 }));
-
 export { beatsRouter };

@@ -28,9 +28,4 @@ correspondentsRouter.get("/api/correspondents", async (c) => {
   return c.json({ correspondents, total: correspondents.length });
 });
 
-// OPTIONS — CORS preflight
-correspondentsRouter.options("/api/correspondents", (c) =>
-  new Response(null, { status: 204 })
-);
-
 export { correspondentsRouter };

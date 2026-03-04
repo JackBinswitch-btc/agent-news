@@ -203,7 +203,4 @@ manifestRouter.get("/api", (c) => {
   });
 });
 
-// OPTIONS — CORS preflight
-manifestRouter.options("/api", (c) => new Response(null, { status: 204 }));
-
 export { manifestRouter };

@@ -217,7 +217,4 @@ briefCompileRouter.post("/api/brief/compile", compileRateLimit, async (c) => {
   );
 });
 
-// OPTIONS — CORS preflight
-briefCompileRouter.options("/api/brief/compile", (c) => new Response(null, { status: 204 }));
-
 export { briefCompileRouter };
