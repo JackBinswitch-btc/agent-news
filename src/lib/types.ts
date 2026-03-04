@@ -155,6 +155,34 @@ export interface Classified {
 }
 
 /**
+ * A compiled signal row returned by the brief compilation JOIN query
+ */
+export interface CompiledSignalRow {
+  readonly id: string;
+  readonly beat_slug: string;
+  readonly btc_address: string;
+  readonly headline: string;
+  readonly body: string | null;
+  readonly sources: string; // JSON string
+  readonly created_at: string;
+  readonly correction_of: string | null;
+  readonly beat_name: string;
+  readonly beat_color: string | null;
+  readonly current_streak: number | null;
+  readonly longest_streak: number | null;
+  readonly total_signals: number | null;
+}
+
+/**
+ * The structured output of brief compilation (raw signal+beat+streak data)
+ */
+export interface CompiledBriefData {
+  readonly date: string;
+  readonly compiled_at: string;
+  readonly signals: CompiledSignalRow[];
+}
+
+/**
  * Generic result type for Durable Object operations
  */
 export interface DOResult<T> {

@@ -1,8 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { Hono } from "hono";
-import type { Env, Beat, Signal, Streak, DOResult } from "../lib/types";
+import type { Env, Beat, Signal, Streak, Brief, CompiledBriefData, DOResult } from "../lib/types";
 import { validateSlug, validateHexColor, sanitizeString } from "../lib/validators";
-import { generateId, getPacificDate, getPacificYesterday } from "../lib/helpers";
+import { generateId, getPacificDate, getPacificYesterday, getPacificDayStartUTC, getNextDate } from "../lib/helpers";
 import { SCHEMA_SQL } from "./schema";
 
 /**
@@ -523,6 +523,178 @@ export class NewsDO extends DurableObject<Env> {
       } as unknown as Signal;
 
       return c.json({ ok: true, data: correctedSignal } satisfies DOResult<Signal>);
+    });
+
+    // -------------------------------------------------------------------------
+    // Briefs CRUD
+    // -------------------------------------------------------------------------
+
+    // GET /briefs/latest — get the most recent compiled brief
+    this.router.get("/briefs/latest", (c) => {
+      const rows = this.ctx.storage.sql
+        .exec("SELECT * FROM briefs ORDER BY date DESC LIMIT 1")
+        .toArray();
+      if (rows.length === 0) {
+        return c.json(
+          { ok: false, error: "No briefs compiled yet" } satisfies DOResult<Brief>,
+          404
+        );
+      }
+      return c.json({ ok: true, data: rows[0] as unknown as Brief } satisfies DOResult<Brief>);
+    });
+
+    // GET /briefs/:date — get a brief by date (YYYY-MM-DD)
+    this.router.get("/briefs/:date", (c) => {
+      const date = c.req.param("date");
+      const rows = this.ctx.storage.sql
+        .exec("SELECT * FROM briefs WHERE date = ?", date)
+        .toArray();
+      if (rows.length === 0) {
+        return c.json(
+          { ok: false, error: `No brief found for ${date}` } satisfies DOResult<Brief>,
+          404
+        );
+      }
+      return c.json({ ok: true, data: rows[0] as unknown as Brief } satisfies DOResult<Brief>);
+    });
+
+    // POST /briefs/compile — compile brief data for a date via SQL JOIN
+    this.router.post("/briefs/compile", async (c) => {
+      let body: Record<string, unknown> = {};
+      try {
+        body = await c.req.json<Record<string, unknown>>();
+      } catch {
+        // Body is optional — use defaults
+      }
+
+      const now = new Date();
+      const date = (body.date as string | undefined) ?? getPacificDate(now);
+
+      // Compute Pacific day boundaries as UTC ISO strings.
+      // We find what UTC time corresponds to midnight Pacific on `date`.
+      // Strategy: use Intl.DateTimeFormat to find the UTC offset for that date,
+      // then derive start/end of the Pacific day in UTC.
+      const dayStart = getPacificDayStartUTC(date);
+      const dayEnd = getPacificDayStartUTC(getNextDate(date));
+
+      const rows = this.ctx.storage.sql
+        .exec(
+          `SELECT s.id, s.beat_slug, s.btc_address, s.headline, s.body, s.sources,
+                  s.created_at, s.correction_of,
+                  b.name as beat_name, b.color as beat_color,
+                  st.current_streak, st.longest_streak, st.total_signals
+           FROM signals s
+           JOIN beats b ON s.beat_slug = b.slug
+           LEFT JOIN streaks st ON s.btc_address = st.btc_address
+           WHERE s.created_at >= ? AND s.created_at < ?
+           ORDER BY s.beat_slug, s.created_at DESC`,
+          dayStart,
+          dayEnd
+        )
+        .toArray();
+
+      const compiledAt = now.toISOString();
+      const data: CompiledBriefData = {
+        date,
+        compiled_at: compiledAt,
+        signals: rows as unknown as CompiledBriefData["signals"],
+      };
+
+      return c.json({ ok: true, data } satisfies DOResult<CompiledBriefData>);
+    });
+
+    // POST /briefs — save a compiled brief (INSERT OR REPLACE for idempotency)
+    this.router.post("/briefs", async (c) => {
+      let body: Record<string, unknown>;
+      try {
+        body = await c.req.json<Record<string, unknown>>();
+      } catch {
+        return c.json(
+          { ok: false, error: "Invalid JSON body" } satisfies DOResult<Brief>,
+          400
+        );
+      }
+
+      const { date, text, json_data, compiled_at } = body;
+
+      if (!date || !text || !compiled_at) {
+        return c.json(
+          { ok: false, error: "Missing required fields: date, text, compiled_at" } satisfies DOResult<Brief>,
+          400
+        );
+      }
+
+      this.ctx.storage.sql.exec(
+        `INSERT OR REPLACE INTO briefs (date, text, json_data, compiled_at, inscribed_txid, inscription_id)
+         VALUES (?, ?, ?, ?, NULL, NULL)`,
+        date as string,
+        text as string,
+        json_data ? (json_data as string) : null,
+        compiled_at as string
+      );
+
+      const rows = this.ctx.storage.sql
+        .exec("SELECT * FROM briefs WHERE date = ?", date as string)
+        .toArray();
+
+      return c.json({ ok: true, data: rows[0] as unknown as Brief } satisfies DOResult<Brief>, 201);
+    });
+
+    // PATCH /briefs/:date — update inscription fields on a brief
+    this.router.patch("/briefs/:date", async (c) => {
+      const date = c.req.param("date");
+
+      const rows = this.ctx.storage.sql
+        .exec("SELECT * FROM briefs WHERE date = ?", date)
+        .toArray();
+      if (rows.length === 0) {
+        return c.json(
+          { ok: false, error: `No brief found for ${date}` } satisfies DOResult<Brief>,
+          404
+        );
+      }
+
+      let body: Record<string, unknown>;
+      try {
+        body = await c.req.json<Record<string, unknown>>();
+      } catch {
+        return c.json(
+          { ok: false, error: "Invalid JSON body" } satisfies DOResult<Brief>,
+          400
+        );
+      }
+
+      const setClauses: string[] = [];
+      const params: unknown[] = [];
+
+      if (body.inscribed_txid !== undefined) {
+        setClauses.push("inscribed_txid = ?");
+        params.push(body.inscribed_txid ?? null);
+      }
+
+      if (body.inscription_id !== undefined) {
+        setClauses.push("inscription_id = ?");
+        params.push(body.inscription_id ?? null);
+      }
+
+      if (setClauses.length === 0) {
+        return c.json(
+          { ok: false, error: "No updatable fields provided (inscribed_txid, inscription_id)" } satisfies DOResult<Brief>,
+          400
+        );
+      }
+
+      params.push(date);
+      this.ctx.storage.sql.exec(
+        `UPDATE briefs SET ${setClauses.join(", ")} WHERE date = ?`,
+        ...params
+      );
+
+      const updated = this.ctx.storage.sql
+        .exec("SELECT * FROM briefs WHERE date = ?", date)
+        .toArray();
+
+      return c.json({ ok: true, data: updated[0] as unknown as Brief } satisfies DOResult<Brief>);
     });
 
     this.router.all("*", (c) => {

@@ -1,4 +1,4 @@
-import type { Env, Beat, Signal, Source, DOResult } from "./types";
+import type { Env, Beat, Signal, Source, Brief, CompiledBriefData, DOResult } from "./types";
 
 /** Singleton DO stub ID — single instance manages all news data */
 const DO_ID_NAME = "news-singleton";
@@ -144,5 +144,67 @@ export async function correctSignal(
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(correction),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Briefs
+// ---------------------------------------------------------------------------
+
+export async function getLatestBrief(env: Env): Promise<Brief | null> {
+  const stub = getStub(env);
+  const result = await doFetch<Brief>(stub, "/briefs/latest");
+  return result.ok ? (result.data ?? null) : null;
+}
+
+export async function getBriefByDate(env: Env, date: string): Promise<Brief | null> {
+  const stub = getStub(env);
+  const result = await doFetch<Brief>(stub, `/briefs/${encodeURIComponent(date)}`);
+  return result.ok ? (result.data ?? null) : null;
+}
+
+export async function compileBriefData(
+  env: Env,
+  date?: string
+): Promise<DOResult<CompiledBriefData>> {
+  const stub = getStub(env);
+  return doFetch<CompiledBriefData>(stub, "/briefs/compile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(date ? { date } : {}),
+  });
+}
+
+export interface SaveBriefInput {
+  date: string;
+  text: string;
+  json_data: string | null;
+  compiled_at: string;
+}
+
+export async function saveBrief(env: Env, brief: SaveBriefInput): Promise<DOResult<Brief>> {
+  const stub = getStub(env);
+  return doFetch<Brief>(stub, "/briefs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(brief),
+  });
+}
+
+export interface BriefUpdates {
+  inscribed_txid?: string | null;
+  inscription_id?: string | null;
+}
+
+export async function updateBrief(
+  env: Env,
+  date: string,
+  updates: BriefUpdates
+): Promise<DOResult<Brief>> {
+  const stub = getStub(env);
+  return doFetch<Brief>(stub, `/briefs/${encodeURIComponent(date)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
   });
 }
