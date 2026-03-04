@@ -21,6 +21,7 @@ import {
   createClassified,
 } from "../lib/do-client";
 import { buildPaymentRequired, verifyPayment } from "../services/x402";
+import { verifyAuth } from "../services/auth";
 
 const classifiedsRouter = new Hono<{
   Bindings: Env;
@@ -116,6 +117,17 @@ classifiedsRouter.post(
         },
         400
       );
+    }
+
+    // BIP-322 auth: verify signature from btc_address before payment
+    const authResult = verifyAuth(
+      c.req.raw.headers,
+      btc_address as string,
+      "POST",
+      "/api/classifieds"
+    );
+    if (!authResult.valid) {
+      return c.json({ error: authResult.error, code: authResult.code }, 401);
     }
 
     // Verify payment via x402 relay

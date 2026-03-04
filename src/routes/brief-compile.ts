@@ -4,6 +4,8 @@ import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { compileBriefData, saveBrief } from "../lib/do-client";
 import { resolveAgentNames } from "../services/agent-resolver";
 import { getPacificDate, formatPacificShort } from "../lib/helpers";
+import { validateBtcAddress } from "../lib/validators";
+import { verifyAuth } from "../services/auth";
 
 const briefCompileRouter = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -16,12 +18,36 @@ const compileRateLimit = createRateLimitMiddleware({
 const MIN_SIGNALS = 3;
 
 // POST /api/brief/compile — compile the daily brief via SQL JOIN, resolve agent names, save
+// BIP-322 auth required: btc_address in body is the compiler's identity
 briefCompileRouter.post("/api/brief/compile", compileRateLimit, async (c) => {
   let body: Record<string, unknown> = {};
   try {
     body = await c.req.json<Record<string, unknown>>();
   } catch {
     // Body is optional — use defaults
+  }
+
+  // BIP-322 auth: btc_address is required for compiler identity
+  const { btc_address } = body;
+  if (!btc_address) {
+    return c.json({ error: "Missing required field: btc_address" }, 400);
+  }
+
+  if (!validateBtcAddress(btc_address)) {
+    return c.json(
+      { error: "Invalid BTC address format (expected bech32 bc1...)" },
+      400
+    );
+  }
+
+  const authResult = verifyAuth(
+    c.req.raw.headers,
+    btc_address as string,
+    "POST",
+    "/api/brief/compile"
+  );
+  if (!authResult.valid) {
+    return c.json({ error: authResult.error, code: authResult.code }, 401);
   }
 
   const now = new Date();

@@ -8,7 +8,6 @@ import {
   validateHeadline,
   validateSources,
   validateTags,
-  validateSignatureFormat,
   sanitizeString,
 } from "../lib/validators";
 import {
@@ -17,6 +16,7 @@ import {
   createSignal,
   correctSignal,
 } from "../lib/do-client";
+import { verifyAuth } from "../services/auth";
 
 const signalsRouter = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -57,7 +57,7 @@ signalsRouter.get("/api/signals/:id", async (c) => {
   return c.json(signal);
 });
 
-// POST /api/signals — submit a new signal (rate limited)
+// POST /api/signals — submit a new signal (rate limited, BIP-322 auth required)
 signalsRouter.post("/api/signals", signalRateLimit, async (c) => {
   let body: Record<string, unknown>;
   try {
@@ -66,7 +66,7 @@ signalsRouter.post("/api/signals", signalRateLimit, async (c) => {
     return c.json({ error: "Invalid JSON body" }, 400);
   }
 
-  const { beat_slug, btc_address, headline, body: signalBody, sources, tags, signature } = body;
+  const { beat_slug, btc_address, headline, body: signalBody, sources, tags } = body;
 
   // Required fields
   if (!beat_slug || !btc_address || !headline || !sources || !tags) {
@@ -107,12 +107,10 @@ signalsRouter.post("/api/signals", signalRateLimit, async (c) => {
     );
   }
 
-  // Optional: signature (validated format only, verification deferred to Phase 6)
-  if (signature !== undefined && !validateSignatureFormat(signature)) {
-    return c.json(
-      { error: "Invalid signature format (expected base64, 20-200 chars)" },
-      401
-    );
+  // BIP-322 auth: verify signature from btc_address
+  const authResult = verifyAuth(c.req.raw.headers, btc_address as string, "POST", "/api/signals");
+  if (!authResult.valid) {
+    return c.json({ error: authResult.error, code: authResult.code }, 401);
   }
 
   const result = await createSignal(c.env, {
@@ -122,7 +120,6 @@ signalsRouter.post("/api/signals", signalRateLimit, async (c) => {
     body: signalBody ? sanitizeString(signalBody, 1000) : null,
     sources,
     tags,
-    signature: signature as string | undefined,
   });
 
   if (!result.ok) {
@@ -133,7 +130,7 @@ signalsRouter.post("/api/signals", signalRateLimit, async (c) => {
   return c.json(result.data, 201);
 });
 
-// PATCH /api/signals/:id — correct a signal (original author only)
+// PATCH /api/signals/:id — correct a signal (original author only, BIP-322 auth required)
 signalsRouter.patch("/api/signals/:id", async (c) => {
   const id = c.req.param("id");
 
@@ -144,7 +141,7 @@ signalsRouter.patch("/api/signals/:id", async (c) => {
     return c.json({ error: "Invalid JSON body" }, 400);
   }
 
-  const { btc_address, headline, body: signalBody, sources, tags, signature } = body;
+  const { btc_address, headline, body: signalBody, sources, tags } = body;
 
   if (!btc_address) {
     return c.json({ error: "Missing required field: btc_address" }, 400);
@@ -176,11 +173,15 @@ signalsRouter.patch("/api/signals/:id", async (c) => {
     );
   }
 
-  if (signature !== undefined && !validateSignatureFormat(signature)) {
-    return c.json(
-      { error: "Invalid signature format (expected base64, 20-200 chars)" },
-      401
-    );
+  // BIP-322 auth: verify signature from btc_address
+  const authResult = verifyAuth(
+    c.req.raw.headers,
+    btc_address as string,
+    "PATCH",
+    `/api/signals/${id}`
+  );
+  if (!authResult.valid) {
+    return c.json({ error: authResult.error, code: authResult.code }, 401);
   }
 
   const result = await correctSignal(c.env, id, {
@@ -189,7 +190,6 @@ signalsRouter.patch("/api/signals/:id", async (c) => {
     body: signalBody ? sanitizeString(signalBody, 1000) : null,
     sources: sources as import("../lib/types").Source[] | undefined,
     tags: tags as string[] | undefined,
-    signature: signature as string | undefined,
   });
 
   if (!result.ok) {

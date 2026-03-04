@@ -4,6 +4,7 @@ import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { BEAT_RATE_LIMIT } from "../lib/constants";
 import { validateSlug, validateHexColor, validateBtcAddress, sanitizeString } from "../lib/validators";
 import { listBeats, getBeat, createBeat, updateBeat } from "../lib/do-client";
+import { verifyAuth } from "../services/auth";
 
 const beatsRouter = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -29,7 +30,7 @@ beatsRouter.get("/api/beats/:slug", async (c) => {
   return c.json(beat);
 });
 
-// POST /api/beats — create a new beat (rate limited)
+// POST /api/beats — create a new beat (rate limited, BIP-322 auth required)
 beatsRouter.post("/api/beats", beatRateLimit, async (c) => {
   let body: Record<string, unknown>;
   try {
@@ -65,6 +66,12 @@ beatsRouter.post("/api/beats", beatRateLimit, async (c) => {
     return c.json({ error: "Invalid color format (expected #RRGGBB)" }, 400);
   }
 
+  // BIP-322 auth: verify signature from created_by address
+  const authResult = verifyAuth(c.req.raw.headers, created_by as string, "POST", "/api/beats");
+  if (!authResult.valid) {
+    return c.json({ error: authResult.error, code: authResult.code }, 401);
+  }
+
   const result = await createBeat(c.env, {
     slug: slug as string,
     name: sanitizeString(name, 100),
@@ -81,7 +88,7 @@ beatsRouter.post("/api/beats", beatRateLimit, async (c) => {
   return c.json(result.data, 201);
 });
 
-// PATCH /api/beats/:slug — update a beat (rate limited)
+// PATCH /api/beats/:slug — update a beat (rate limited, BIP-322 auth required)
 beatsRouter.patch("/api/beats/:slug", beatRateLimit, async (c) => {
   const slug = c.req.param("slug");
 
@@ -92,8 +99,32 @@ beatsRouter.patch("/api/beats/:slug", beatRateLimit, async (c) => {
     return c.json({ error: "Invalid JSON body" }, 400);
   }
 
+  // btc_address is required in the body for auth
+  const { btc_address } = body;
+  if (!btc_address) {
+    return c.json({ error: "Missing required field: btc_address" }, 400);
+  }
+
+  if (!validateBtcAddress(btc_address)) {
+    return c.json(
+      { error: "Invalid BTC address format (expected bech32 bc1...)" },
+      400
+    );
+  }
+
   if (body.color !== undefined && body.color !== null && !validateHexColor(body.color)) {
     return c.json({ error: "Invalid color format (expected #RRGGBB)" }, 400);
+  }
+
+  // BIP-322 auth: verify signature from btc_address
+  const authResult = verifyAuth(
+    c.req.raw.headers,
+    btc_address as string,
+    "PATCH",
+    `/api/beats/${slug}`
+  );
+  if (!authResult.valid) {
+    return c.json({ error: authResult.error, code: authResult.code }, 401);
   }
 
   const result = await updateBeat(c.env, slug, body);
