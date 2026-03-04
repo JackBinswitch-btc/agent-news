@@ -1,25 +1,17 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { VERSION } from "./version";
-
-// Env type — bindings defined in wrangler.jsonc
-type Env = {
-  NEWS_KV: KVNamespace;
-  NEWS_DO: DurableObjectNamespace;
-  LOGS: {
-    info: (message: string, data?: Record<string, unknown>) => Promise<void>;
-    warn: (message: string, data?: Record<string, unknown>) => Promise<void>;
-    error: (message: string, data?: Record<string, unknown>) => Promise<void>;
-    debug: (message: string, data?: Record<string, unknown>) => Promise<void>;
-  };
-  ENVIRONMENT?: string;
-};
+import type { Env, AppVariables } from "./lib/types";
+import { loggerMiddleware } from "./middleware";
 
 // Create Hono app with type safety
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
 // Apply CORS globally
 app.use("/*", cors());
+
+// Apply logger middleware globally (creates request-scoped logger + requestId)
+app.use("*", loggerMiddleware);
 
 // Health endpoint
 app.get("/health", (c) => {
@@ -85,17 +77,5 @@ app.onError((err, c) => {
 
 export default app;
 
-/**
- * NewsDO — Durable Object with SQLite storage (stub for Phase 0 scaffold).
- * Full implementation in Phase 1.
- */
-export class NewsDO implements DurableObject {
-  constructor(
-    private readonly state: DurableObjectState,
-    private readonly env: Env
-  ) {}
-
-  async fetch(_request: Request): Promise<Response> {
-    return new Response("NewsDO not yet implemented", { status: 501 });
-  }
-}
+// Re-export NewsDO from its own module for wrangler to pick up
+export { NewsDO } from "./objects/news-do";
