@@ -12,6 +12,8 @@
  *   OLD_CF_API_TOKEN     — Cloudflare API token with KV:Read permissions
  *   OLD_KV_NAMESPACE_ID  — KV namespace ID from the old account
  *   NEW_WORKER_URL       — Base URL for the new Worker (e.g. https://agent-news-staging.workers.dev)
+ *   MIGRATION_KEY        — Shared secret matching the Worker's MIGRATION_KEY secret
+ *                          (set via: wrangler secret put MIGRATION_KEY --env staging)
  *
  * Migration order (foreign key dependency order):
  *   beats → signals → signal_tags → streaks → earnings → briefs → classifieds
@@ -27,11 +29,13 @@ const OLD_CF_ACCOUNT_ID = process.env.OLD_CF_ACCOUNT_ID ?? "";
 const OLD_CF_API_TOKEN = process.env.OLD_CF_API_TOKEN ?? "";
 const OLD_KV_NAMESPACE_ID = process.env.OLD_KV_NAMESPACE_ID ?? "";
 const NEW_WORKER_URL = (process.env.NEW_WORKER_URL ?? "").replace(/\/$/, "");
+const MIGRATION_KEY = process.env.MIGRATION_KEY ?? "";
 
 function assertConfig(): void {
   const missing: string[] = [];
   if (!OLD_CF_ACCOUNT_ID) missing.push("OLD_CF_ACCOUNT_ID");
   if (!OLD_CF_API_TOKEN) missing.push("OLD_CF_API_TOKEN");
+  if (!MIGRATION_KEY) missing.push("MIGRATION_KEY");
   if (!OLD_KV_NAMESPACE_ID) missing.push("OLD_KV_NAMESPACE_ID");
   if (!NEW_WORKER_URL) missing.push("NEW_WORKER_URL");
   if (missing.length > 0) {
@@ -160,7 +164,10 @@ async function sendBatch(
 
   const res = await fetch(`${NEW_WORKER_URL}/api/internal/migrate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Migration-Key": MIGRATION_KEY,
+    },
     body: JSON.stringify({ type, records }),
   });
 
@@ -228,9 +235,8 @@ async function printMigrationStatus(): Promise<void> {
   }
 
   const res = await fetch(`${NEW_WORKER_URL}/api/internal/migrate/status`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
+    method: "GET",
+    headers: { "X-Migration-Key": MIGRATION_KEY },
   });
 
   if (!res.ok) {
