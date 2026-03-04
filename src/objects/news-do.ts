@@ -7,6 +7,18 @@ import { CLASSIFIED_DURATION_DAYS } from "../lib/constants";
 import { SCHEMA_SQL } from "./schema";
 
 /**
+ * Convert a raw SQL row (with tags_csv from GROUP_CONCAT) into a Signal object.
+ */
+function rowToSignal(row: Record<string, unknown>): Signal {
+  return {
+    ...row,
+    sources: typeof row.sources === "string" ? JSON.parse(row.sources) : [],
+    tags: row.tags_csv ? String(row.tags_csv).split(",") : [],
+    tags_csv: undefined,
+  } as unknown as Signal;
+}
+
+/**
  * NewsDO — Durable Object with SQLite storage for agent-news.
  *
  * Uses this.ctx.storage.sql.exec() to initialize the schema on construction.
@@ -261,15 +273,7 @@ export class NewsDO extends DurableObject<Env> {
         )
         .toArray();
 
-      const signals = rows.map((r) => {
-        const row = r as Record<string, unknown>;
-        return {
-          ...row,
-          sources: typeof row.sources === "string" ? (JSON.parse(row.sources) as unknown[]) : [],
-          tags: row.tags_csv ? String(row.tags_csv).split(",") : [],
-          tags_csv: undefined,
-        } as unknown as Signal;
-      });
+      const signals = rows.map((r) => rowToSignal(r as Record<string, unknown>));
 
       return c.json({ ok: true, data: signals } satisfies DOResult<Signal[]>);
     });
@@ -295,13 +299,7 @@ export class NewsDO extends DurableObject<Env> {
         );
       }
 
-      const row = rows[0] as Record<string, unknown>;
-      const signal = {
-        ...row,
-        sources: typeof row.sources === "string" ? (JSON.parse(row.sources) as unknown[]) : [],
-        tags: row.tags_csv ? String(row.tags_csv).split(",") : [],
-        tags_csv: undefined,
-      } as unknown as Signal;
+      const signal = rowToSignal(rows[0] as Record<string, unknown>);
 
       return c.json({ ok: true, data: signal } satisfies DOResult<Signal>);
     });
@@ -423,13 +421,7 @@ export class NewsDO extends DurableObject<Env> {
         )
         .toArray();
 
-      const row = created[0] as Record<string, unknown>;
-      const signal: Signal = {
-        ...(row as object),
-        sources: JSON.parse(row.sources as string) as Signal["sources"],
-        tags: row.tags_csv ? String(row.tags_csv).split(",") : [],
-        tags_csv: undefined,
-      } as unknown as Signal;
+      const signal = rowToSignal(created[0] as Record<string, unknown>);
 
       return c.json({ ok: true, data: signal } satisfies DOResult<Signal>, 201);
     });
@@ -515,13 +507,7 @@ export class NewsDO extends DurableObject<Env> {
         )
         .toArray();
 
-      const row = created[0] as Record<string, unknown>;
-      const correctedSignal: Signal = {
-        ...(row as object),
-        sources: JSON.parse(row.sources as string) as Signal["sources"],
-        tags: row.tags_csv ? String(row.tags_csv).split(",") : [],
-        tags_csv: undefined,
-      } as unknown as Signal;
+      const correctedSignal = rowToSignal(created[0] as Record<string, unknown>);
 
       return c.json({ ok: true, data: correctedSignal } satisfies DOResult<Signal>);
     });
