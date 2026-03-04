@@ -45,7 +45,8 @@
    * Each environment must explicitly define all bindings it needs.
    *
    * Secrets (set via `wrangler secret put --env <env>`):
-   * - None needed initially
+   * - MIGRATION_KEY — shared secret for POST /api/internal/migrate endpoints.
+   *   Set via: `wrangler secret put MIGRATION_KEY --env staging` (and --env production)
    */
   "env": {
     "staging": {
