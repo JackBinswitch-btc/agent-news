@@ -156,7 +156,18 @@ fi
 
 echo ""
 echo "================================"
-echo "Done! Beats and signals are seeded."
+echo "Compiling brief..."
+curl -s -X POST "$BASE/api/brief/compile" \
+  -H "Content-Type: application/json" \
+  -d '{}' | python3 -m json.tool 2>/dev/null
+
+echo ""
+echo "Verifying latest brief..."
+curl -s "$BASE/api/brief" | python3 -m json.tool 2>/dev/null
+
+echo ""
+echo "================================"
+echo "Done! Beats, signals, and brief are seeded."
 
 # ── Legacy seed commands (v1 KV-backed API) ──
 # The following commands used the old KV-backed Pages Functions API.

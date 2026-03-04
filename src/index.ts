@@ -5,6 +5,9 @@ import type { Env, AppVariables } from "./lib/types";
 import { loggerMiddleware } from "./middleware";
 import { beatsRouter } from "./routes/beats";
 import { signalsRouter } from "./routes/signals";
+import { briefRouter } from "./routes/brief";
+import { briefCompileRouter } from "./routes/brief-compile";
+import { briefInscribeRouter } from "./routes/brief-inscribe";
 
 // Create Hono app with type safety
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
@@ -20,6 +23,11 @@ app.route("/", beatsRouter);
 
 // Mount signals routes
 app.route("/", signalsRouter);
+
+// Mount brief routes (compile before generic brief to avoid :date matching /compile)
+app.route("/", briefCompileRouter);
+app.route("/", briefRouter);
+app.route("/", briefInscribeRouter);
 
 // Health endpoint
 app.get("/health", (c) => {
