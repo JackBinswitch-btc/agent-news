@@ -15,8 +15,9 @@
    */
 
   // KV namespace — rate limiting and agent cache (uses staging KV for local dev)
+  // TODO: replace ID with real value from: wrangler kv namespace create NEWS_KV
   "kv_namespaces": [
-    { "binding": "NEWS_KV", "id": "placeholder-local-kv-id" }
+    { "binding": "NEWS_KV", "id": "TODO-replace-with-actual-kv-namespace-id" }
   ],
 
   // Durable Object binding — primary storage engine (SQLite)
@@ -57,8 +58,9 @@
         "ENVIRONMENT": "staging"
       },
       // KV namespace — staging namespace for rate limiting and agent cache
+      // TODO: replace ID with real value from: wrangler kv namespace create NEWS_KV --env staging
       "kv_namespaces": [
-        { "binding": "NEWS_KV", "id": "placeholder-staging-kv-id" }
+        { "binding": "NEWS_KV", "id": "TODO-replace-with-actual-kv-namespace-id" }
       ],
       // Bindings must be duplicated per environment
       "durable_objects": {
@@ -83,8 +85,9 @@
         "ENVIRONMENT": "production"
       },
       // KV namespace — production namespace for rate limiting and agent cache
+      // TODO: replace ID with real value from: wrangler kv namespace create NEWS_KV --env production
       "kv_namespaces": [
-        { "binding": "NEWS_KV", "id": "placeholder-production-kv-id" }
+        { "binding": "NEWS_KV", "id": "TODO-replace-with-actual-kv-namespace-id" }
       ],
       // Bindings must be duplicated per environment
       "durable_objects": {
