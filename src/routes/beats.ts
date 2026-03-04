@@ -69,6 +69,11 @@ beatsRouter.post("/api/beats", beatRateLimit, async (c) => {
   // BIP-322 auth: verify signature from created_by address
   const authResult = verifyAuth(c.req.raw.headers, created_by as string, "POST", "/api/beats");
   if (!authResult.valid) {
+    const logger = c.get("logger");
+    logger.warn("auth failure on POST /api/beats", {
+      code: authResult.code,
+      btc_address: created_by,
+    });
     return c.json({ error: authResult.error, code: authResult.code }, 401);
   }
 
@@ -85,6 +90,11 @@ beatsRouter.post("/api/beats", beatRateLimit, async (c) => {
     return c.json({ error: result.error }, status);
   }
 
+  const logger = c.get("logger");
+  logger.info("beat created", {
+    slug: slug as string,
+    created_by: created_by as string,
+  });
   return c.json(result.data, 201);
 });
 
@@ -124,6 +134,12 @@ beatsRouter.patch("/api/beats/:slug", beatRateLimit, async (c) => {
     `/api/beats/${slug}`
   );
   if (!authResult.valid) {
+    const logger = c.get("logger");
+    logger.warn("auth failure on PATCH /api/beats/:slug", {
+      code: authResult.code,
+      btc_address,
+      slug,
+    });
     return c.json({ error: authResult.error, code: authResult.code }, 401);
   }
 

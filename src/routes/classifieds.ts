@@ -69,6 +69,10 @@ classifiedsRouter.post(
     // If no payment header, return 402 (NOT 500).
     // Old code tried to read the header and crashed if missing.
     if (!paymentHeader) {
+      const logger = c.get("logger");
+      logger.info("402 payment required sent for POST /api/classifieds", {
+        ip: c.req.header("CF-Connecting-IP"),
+      });
       return buildPaymentRequired({
         amount: CLASSIFIED_PRICE_SATS,
         description: `Classified ad listing — place your ad for ${CLASSIFIED_PRICE_SATS} sats sBTC`,
@@ -127,17 +131,32 @@ classifiedsRouter.post(
       "/api/classifieds"
     );
     if (!authResult.valid) {
+      const logger = c.get("logger");
+      logger.warn("auth failure on POST /api/classifieds", {
+        code: authResult.code,
+        btc_address,
+      });
       return c.json({ error: authResult.error, code: authResult.code }, 401);
     }
 
     // Verify payment via x402 relay
     const verification = await verifyPayment(paymentHeader, CLASSIFIED_PRICE_SATS);
     if (!verification.valid) {
+      const logger = c.get("logger");
+      logger.warn("payment verification failed for POST /api/classifieds", {
+        btc_address,
+      });
       return buildPaymentRequired({
         amount: CLASSIFIED_PRICE_SATS,
         description: `Payment verification failed. Please pay ${CLASSIFIED_PRICE_SATS} sats sBTC to place a classified ad.`,
       });
     }
+
+    const logger = c.get("logger");
+    logger.info("payment verified for POST /api/classifieds", {
+      btc_address,
+      txid: verification.txid,
+    });
 
     const result = await createClassified(c.env, {
       btc_address: btc_address as string,
@@ -152,6 +171,11 @@ classifiedsRouter.post(
       return c.json({ error: result.error }, 400);
     }
 
+    logger.info("classified created", {
+      id: (result.data as { id?: string })?.id,
+      btc_address: btc_address as string,
+      category: category as string,
+    });
     return c.json(result.data, 201);
   }
 );

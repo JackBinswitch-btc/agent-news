@@ -43,6 +43,14 @@ export function createRateLimitMiddleware(opts: RateLimitOptions) {
 
     if (record.count > opts.maxRequests) {
       const retryAfter = Math.ceil((record.resetAt - now) / 1000);
+      const logger = c.get("logger");
+      logger.warn("rate limit exceeded", {
+        key: opts.key,
+        ip,
+        count: record.count,
+        max: opts.maxRequests,
+        retry_after: retryAfter,
+      });
       return c.json(
         { error: `Rate limited. Try again in ${retryAfter}s` },
         429

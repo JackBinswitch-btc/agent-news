@@ -110,6 +110,11 @@ signalsRouter.post("/api/signals", signalRateLimit, async (c) => {
   // BIP-322 auth: verify signature from btc_address
   const authResult = verifyAuth(c.req.raw.headers, btc_address as string, "POST", "/api/signals");
   if (!authResult.valid) {
+    const logger = c.get("logger");
+    logger.warn("auth failure on POST /api/signals", {
+      code: authResult.code,
+      btc_address,
+    });
     return c.json({ error: authResult.error, code: authResult.code }, 401);
   }
 
@@ -127,6 +132,12 @@ signalsRouter.post("/api/signals", signalRateLimit, async (c) => {
     return c.json({ error: result.error }, status);
   }
 
+  const logger = c.get("logger");
+  logger.info("signal created", {
+    id: (result.data as { id?: string })?.id,
+    beat_slug: beat_slug as string,
+    btc_address: btc_address as string,
+  });
   return c.json(result.data, 201);
 });
 
@@ -181,6 +192,12 @@ signalsRouter.patch("/api/signals/:id", async (c) => {
     `/api/signals/${id}`
   );
   if (!authResult.valid) {
+    const logger = c.get("logger");
+    logger.warn("auth failure on PATCH /api/signals/:id", {
+      code: authResult.code,
+      btc_address,
+      signal_id: id,
+    });
     return c.json({ error: authResult.error, code: authResult.code }, 401);
   }
 

@@ -59,6 +59,12 @@ briefInscribeRouter.post(
 
     const authResult = verifyAuth(c.req.raw.headers, btc_address as string, "POST", `/api/brief/${date}/inscribe`);
     if (!authResult.valid) {
+      const logger = c.get("logger");
+      logger.warn("auth failure on POST /api/brief/:date/inscribe", {
+        code: authResult.code,
+        btc_address,
+        date,
+      });
       return c.json({ error: authResult.error ?? "Unauthorized" }, 401);
     }
 
@@ -105,6 +111,12 @@ briefInscribeRouter.post(
       return c.json({ error: result.error ?? "Failed to update brief" }, 500);
     }
 
+    const logger = c.get("logger");
+    logger.info("brief inscribed", {
+      date,
+      inscription_id: inscription_id as string,
+      btc_address,
+    });
     return c.json(
       {
         ok: true,
@@ -151,6 +163,12 @@ briefInscribeRouter.patch("/api/brief/:date/inscribe", async (c) => {
 
   const authResult = verifyAuth(c.req.raw.headers, btc_address, "PATCH", `/api/brief/${date}/inscribe`);
   if (!authResult.valid) {
+    const logger = c.get("logger");
+    logger.warn("auth failure on PATCH /api/brief/:date/inscribe", {
+      code: authResult.code,
+      btc_address,
+      date,
+    });
     return c.json({ error: authResult.error ?? "Unauthorized" }, 401);
   }
 
