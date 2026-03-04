@@ -3,6 +3,7 @@ import type { Env, AppVariables } from "../lib/types";
 import { createRateLimitMiddleware } from "../middleware/rate-limit";
 import { getBriefByDate, updateBrief } from "../lib/do-client";
 import { validateBtcAddress, validateSignatureFormat } from "../lib/validators";
+import { verifyAuth } from "../services/auth";
 
 const briefInscribeRouter = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -54,6 +55,11 @@ briefInscribeRouter.post(
         { error: "Invalid BTC address format (expected bech32 bc1...)" },
         400
       );
+    }
+
+    const authResult = verifyAuth(c.req.raw.headers, btc_address as string, "POST", `/api/brief/${date}/inscribe`);
+    if (!authResult.valid) {
+      return c.json({ error: authResult.error ?? "Unauthorized" }, 401);
     }
 
     if (!validateSignatureFormat(signature)) {
@@ -130,7 +136,23 @@ briefInscribeRouter.patch("/api/brief/:date/inscribe", async (c) => {
     return c.json({ error: "Invalid JSON body" }, 400);
   }
 
-  const { inscribed_txid, inscription_id } = body;
+  const { btc_address, inscribed_txid, inscription_id } = body;
+
+  if (!btc_address || typeof btc_address !== "string") {
+    return c.json({ error: "Missing required field: btc_address" }, 400);
+  }
+
+  if (!validateBtcAddress(btc_address)) {
+    return c.json(
+      { error: "Invalid BTC address format (expected bech32 bc1...)" },
+      400
+    );
+  }
+
+  const authResult = verifyAuth(c.req.raw.headers, btc_address, "PATCH", `/api/brief/${date}/inscribe`);
+  if (!authResult.valid) {
+    return c.json({ error: authResult.error ?? "Unauthorized" }, 401);
+  }
 
   if (inscribed_txid === undefined && inscription_id === undefined) {
     return c.json(
