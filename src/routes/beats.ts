@@ -127,6 +127,15 @@ beatsRouter.patch("/api/beats/:slug", beatRateLimit, async (c) => {
     return c.json({ error: authResult.error, code: authResult.code }, 401);
   }
 
+  // Ownership check: ensure the authenticated address owns the beat
+  const existingBeat = await getBeat(c.env, slug);
+  if (!existingBeat) {
+    return c.json({ error: `Beat "${slug}" not found` }, 404);
+  }
+  if (existingBeat.created_by !== btc_address) {
+    return c.json({ error: "Forbidden: you do not own this beat" }, 403);
+  }
+
   const result = await updateBeat(c.env, slug, body);
 
   if (!result.ok) {
